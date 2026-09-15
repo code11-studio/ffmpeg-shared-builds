@@ -1,0 +1,107 @@
+name: FFmpeg build
+
+# Builds the trimmed GPL shared FFmpeg for Windows and publishes binaries + corresponding source to one
+# release of this repository. Run manually.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag, e.g. ffmpeg-8.0-r1"
+        required: true
+      btbn_commit:
+        description: "BtbN/FFmpeg-Builds commit to build from"
+        required: true
+        default: 3e6685eda92f9288c15ac320139622dcedca09a4
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [win64, winarm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      # A hosted runner has ~14 GB free; the toolchain images and stage layers need more. Same recipe as BtbN's CI.
+      - name: Free disk space
+        run: |
+          sudo apt-get clean
+          docker system prune -a -f
+          sudo rm -rf /opt/ghc /usr/local/.ghcup /usr/local/lib/android /usr/share/dotnet /usr/local/share/powershell /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Prepare BtbN tree
+        env:
+          BTBN_COMMIT: ${{ inputs.btbn_commit }}
+        run: bash prepare.sh "$RUNNER_TEMP/btbn"
+
+      # BTBN_IMAGE_REPO + QUICKBUILD: pull BtbN's public cross-toolchain images instead of rebuilding them.
+      - name: Build image
+        working-directory: ${{ runner.temp }}/btbn
+        env:
+          BTBN_IMAGE_REPO: btbn/ffmpeg-builds
+          QUICKBUILD: "1"
+          NO_LOCAL_CACHE: "1"   # do not export every layer to .cache (several GB) on a single-shot runner
+        run: ./makeimage.sh ${{ matrix.target }} gpl-shared 8.0 trimmed
+
+      - name: Build FFmpeg
+        working-directory: ${{ runner.temp }}/btbn
+        env:
+          BTBN_IMAGE_REPO: btbn/ffmpeg-builds
+        run: ./build.sh ${{ matrix.target }} gpl-shared 8.0 trimmed
+
+      - name: Package
+        working-directory: ${{ runner.temp }}/btbn
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          zip=$(ls artifacts/*.zip | head -n1)
+          cp "$zip" "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-gpl-shared.zip"
+          # BtbN's zip name carries the FFmpeg commit (…-g<hash>-…); the sources job reads it from this.
+          basename "$zip" .zip > "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-build-name.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.target }}
+          path: |
+            out/*.zip
+            out/*-build-name.txt
+
+      # Corresponding source (GPL): the stage tarballs download.sh fetched into .cache/downloads, plus FFmpeg at the
+      # commit in BtbN's build name (…-g<hash>-…). Done once, on the win64 runner, where that cache is.
+      - name: Collect corresponding source
+        if: matrix.target == 'win64'
+        run: |
+          hash=$(grep -ohE -- '-g[0-9a-f]{7,}' out/*-build-name.txt | head -n1 | sed 's/^-g//')
+          test -n "$hash"
+          FFMPEG_COMMIT="$hash" bash collect-sources.sh "$RUNNER_TEMP/btbn" "$GITHUB_WORKSPACE/out/ffmpeg-source.tar.xz"
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'win64'
+        with:
+          name: ffmpeg-source
+          path: out/ffmpeg-source.tar.xz
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          rm -f *-build-name.txt
+          sha256sum * > SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.release_tag }}" dist/* \
+            --repo "${{ github.repository }}" \
+            --title "${{ inputs.release_tag }}" \
+            --notes "Trimmed GPL shared FFmpeg for Windows (x64, ARM64). Complete corresponding source: ffmpeg-source.tar.xz"
