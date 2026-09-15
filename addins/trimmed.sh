@@ -18,12 +18,18 @@ FF_CONFIGURE+=" --disable-encoders --enable-encoder=libx264,libx265,libsvtav1,li
 FF_CONFIGURE+=",h264_mf,hevc_mf,aac,libopus,libmp3lame,movtext,webvtt,ass,subrip"
 # ac3, srt, testsrc2 and sine: enough to synthesize test clips with the build itself.
 FF_CONFIGURE+=",ac3,srt"
+# wrapped_avframe: the encoder `-f null -` needs, for the interlace scan decoding frames without writing them.
+FF_CONFIGURE+=",wrapped_avframe"
 
 FF_CONFIGURE+=" --disable-muxers --enable-muxer=mp4,mov,ipod,matroska,webm,gif,mp3,image2,image2pipe,ass,webvtt,srt,null"
 
 FF_CONFIGURE+=" --disable-filters --enable-filter=scale,format,setsar,fps,split,palettegen,paletteuse,bwdif,yadif"
 FF_CONFIGURE+=",zscale,tonemap,subtitles,ass,transpose,hflip,vflip,rotate,aresample,aformat,anull,null"
 FF_CONFIGURE+=",color,nullsrc,anullsrc,testsrc2,sine,hwupload,hwdownload"
+# Interlace scan (idet) and inverse telecine (fieldmatch + decimate) for DVD-era sources.
+FF_CONFIGURE+=",idet,fieldmatch,decimate"
+# telecine, tinterlace and setfield: enough to synthesize interlaced and telecined test clips.
+FF_CONFIGURE+=",telecine,tinterlace,setfield"
 
 FF_CONFIGURE+=" --enable-mediafoundation --enable-d3d11va --enable-dxva2"
 
