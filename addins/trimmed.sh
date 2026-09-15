@@ -27,6 +27,8 @@ FF_CONFIGURE+=",color,nullsrc,anullsrc,testsrc2,sine,hwupload,hwdownload"
 
 FF_CONFIGURE+=" --enable-mediafoundation --enable-d3d11va --enable-dxva2"
 
+# BtbN builds nv-codec-headers for winarm64 only from FFmpeg 9.0 on; libvpl is win64-only.
+FF_CONFIGURE+=" --enable-encoder=h264_nvenc,hevc_nvenc,av1_nvenc"
 if [[ "$TARGET" == win64 ]]; then
-    FF_CONFIGURE+=" --enable-encoder=h264_nvenc,hevc_nvenc,av1_nvenc,h264_qsv,hevc_qsv,av1_qsv,h264_amf,hevc_amf,av1_amf"
+    FF_CONFIGURE+=",h264_qsv,hevc_qsv,av1_qsv,h264_amf,hevc_amf,av1_amf"
 fi

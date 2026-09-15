@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag, e.g. ffmpeg-8.0-r1"
+        description: "Release tag, e.g. ffmpeg-9.0-r1"
         required: true
       btbn_commit:
         description: "BtbN/FFmpeg-Builds commit to build from"
@@ -15,6 +15,10 @@ on:
 
 permissions:
   contents: write
+
+env:
+  # BtbN version add-in: builds FFmpeg's release/<version> branch. Keep in step with build-local.sh.
+  FFMPEG_VERSION: "9.0"
 
 jobs:
   build:
@@ -46,13 +50,13 @@ jobs:
           BTBN_IMAGE_REPO: btbn/ffmpeg-builds
           QUICKBUILD: "1"
           NO_LOCAL_CACHE: "1"   # do not export every layer to .cache (several GB) on a single-shot runner
-        run: ./makeimage.sh ${{ matrix.target }} gpl-shared 8.0 trimmed
+        run: ./makeimage.sh ${{ matrix.target }} gpl-shared "$FFMPEG_VERSION" trimmed
 
       - name: Build FFmpeg
         working-directory: ${{ runner.temp }}/btbn
         env:
           BTBN_IMAGE_REPO: btbn/ffmpeg-builds
-        run: ./build.sh ${{ matrix.target }} gpl-shared 8.0 trimmed
+        run: ./build.sh ${{ matrix.target }} gpl-shared "$FFMPEG_VERSION" trimmed
 
       - name: Package
         working-directory: ${{ runner.temp }}/btbn
