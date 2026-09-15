@@ -36,14 +36,14 @@ llvm-mingw), pinned to one commit in `prepare.sh`. CI runs
    `scripts.d/zz-final.sh` — the entry point BtbN's `generate.sh` walks from — to depend on exactly those roots.
    It also installs the `trimmed` add-in and patches `util/vars.sh` so `BTBN_IMAGE_REPO` can select whose
    base images to use.
-2. `makeimage.sh` + `build.sh` with add-ins `8.0 trimmed` produce `win64` and `winarm64` `gpl-shared` zips
-   from FFmpeg's `release/8.0` branch. With `BTBN_IMAGE_REPO=btbn/ffmpeg-builds QUICKBUILD=1` the public
+2. `makeimage.sh` + `build.sh` with add-ins `9.0 trimmed` produce `win64` and `winarm64` `gpl-shared` zips
+   from FFmpeg's `release/9.0` branch (`FFMPEG_VERSION` in the workflow and `build-local.sh`). With `BTBN_IMAGE_REPO=btbn/ffmpeg-builds QUICKBUILD=1` the public
    `ghcr.io/btbn/ffmpeg-builds/base-<target>` cross-toolchain images are pulled instead of rebuilt.
 3. `collect-sources.sh` archives the exact source of FFmpeg and every kept dependency (GPL corresponding source).
 4. Binaries, `SHA256SUMS` and the source archive are attached to one GitHub release of this repository.
 
 Target differences: BtbN does not build libvpx or libvpl for `winarm64`, so that build has no VP9 encoder and no
-QSV; NVENC needs FFmpeg > 8.1 on ARM64. `verify-ffmpeg.ps1 -Arm64` knows this.
+QSV (NVENC is there on both). `verify-ffmpeg.ps1 -Arm64` knows this.
 
 ### Building locally (Windows)
 
@@ -51,8 +51,7 @@ Install WSL 2 with Ubuntu and Docker Desktop with WSL integration enabled for th
 (work on the Linux filesystem, not `/mnt/e`):
 
 ```bash
-cp -r /mnt/e/Github/Codeleven/ffmpeg-builds ~/ffmpeg-builds && sed -i 's/
-$//' ~/ffmpeg-builds/*.sh ~/ffmpeg-builds/addins/*.sh
+cp -r /mnt/e/Github/Codeleven/ffmpeg-shared-builds ~/ffmpeg-builds && sed -i 's/\r$//' ~/ffmpeg-builds/*.sh ~/ffmpeg-builds/addins/*.sh
 bash ~/ffmpeg-builds/build-local.sh ~/btbn win64 winarm64
 ```
 
@@ -62,7 +61,7 @@ bash ~/ffmpeg-builds/build-local.sh ~/btbn win64 winarm64
 
 ## Using a release
 
-Unzip `ffmpeg-<target>-gpl-shared.zip`, keep `binfmpeg.exe`, `binfprobe.exe`, the `bin\*.dll` beside them and
+Unzip `ffmpeg-<target>-gpl-shared.zip`, keep `bin\ffmpeg.exe`, `bin\ffprobe.exe`, the `bin\*.dll` beside them and
 `LICENSE.txt`; verify a download against `SHA256SUMS`. `verify-ffmpeg.ps1` checks that a folder has every
 promised encoder, muxer, filter and device and the expected license flags:
 

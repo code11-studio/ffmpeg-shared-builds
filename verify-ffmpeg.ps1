@@ -30,10 +30,10 @@ function Get-CodecNames([string] $kind) {
 }
 
 # ac3, srt, testsrc2 and sine: kept so test clips can be synthesized with the build itself.
-$requiredEncoders = 'libx264','libx265','libsvtav1','prores_ks','gif','png','h264_mf','hevc_mf','aac','ac3','libopus','libmp3lame','mov_text','webvtt','ass','subrip','srt'
+$requiredEncoders = 'libx264','libx265','libsvtav1','prores_ks','gif','png','h264_mf','hevc_mf','aac','ac3','libopus','libmp3lame','mov_text','webvtt','ass','subrip','srt','h264_nvenc','hevc_nvenc','av1_nvenc'
 if (-not $Arm64) {
-    # BtbN does not build libvpx or libvpl for winarm64, and NVENC needs FFmpeg > 8.1 there.
-    $requiredEncoders += 'libvpx-vp9','h264_nvenc','hevc_nvenc','av1_nvenc','h264_qsv','hevc_qsv','av1_qsv','h264_amf','hevc_amf','av1_amf'
+    # BtbN does not build libvpx or libvpl for winarm64.
+    $requiredEncoders += 'libvpx-vp9','h264_qsv','hevc_qsv','av1_qsv','h264_amf','hevc_amf','av1_amf'
 }
 $requiredMuxers = 'mp4','mov','matroska','webm','gif','mp3','image2pipe','ass','null'
 $requiredFilters = 'scale','format','fps','split','palettegen','paletteuse','bwdif','zscale','tonemap','subtitles','transpose','aresample','color','testsrc2','sine'
