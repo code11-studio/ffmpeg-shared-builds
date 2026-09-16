@@ -1,8 +1,19 @@
 # ffmpeg-builds
 
-Trimmed **GPL, shared** FFmpeg builds for Windows (x64 and ARM64): `ffmpeg.exe` + `ffprobe.exe` + `av*.dll`, meant
+Trimmed **shared** FFmpeg builds for Windows (x64 and ARM64): `ffmpeg.exe` + `ffprobe.exe` + `av*.dll`, meant
 to be started as separate processes by a host application. Each release carries the binaries, `SHA256SUMS`, and
-`ffmpeg-source.tar.xz`: the complete corresponding source (GPL v2 §3).
+`ffmpeg-source.tar.xz`: the complete corresponding source (GPL v2 §3 / LGPL v2.1 §4).
+
+Two flavours, one release each (`FLAVOR` in `prepare.sh`, `flavor` input in the workflow):
+
+| Flavour | Add-in | BtbN variant | Zip | License | For |
+|---|---|---|---|---|---|
+| `trimmed` (default) | `addins/trimmed.sh` | `gpl-shared` | `ffmpeg-<target>-gpl-shared.zip` | GPL v2+ | Video Converter (x264/x265/SVT-AV1/libvpx, GPU encoders, subtitle burn-in) |
+| `audio-lgpl` | `addins/audio-lgpl.sh` | `lgpl-shared` | `ffmpeg-<target>-lgpl-shared.zip` | LGPL v2.1+ | Audio Converter (all decoders; LAME, AAC, Opus, Vorbis, FLAC, ALAC, PCM, WMA, AC-3 encoders; loudnorm) |
+
+The audio flavour is built without `--enable-gpl`, `--enable-nonfree` and `--enable-version3`, and its
+`verify-ffmpeg.ps1 -Profile audio` run refuses any GPL component. The rest of this file describes the video flavour;
+the audio one only swaps the add-in and the dependency roots.
 
 ## What is in it
 
@@ -53,6 +64,7 @@ Install WSL 2 with Ubuntu and Docker Desktop with WSL integration enabled for th
 ```bash
 cp -r /mnt/e/Github/Codeleven/ffmpeg-shared-builds ~/ffmpeg-builds && sed -i 's/\r$//' ~/ffmpeg-builds/*.sh ~/ffmpeg-builds/addins/*.sh
 bash ~/ffmpeg-builds/build-local.sh ~/btbn win64 winarm64
+FLAVOR=audio-lgpl bash ~/ffmpeg-builds/build-local.sh ~/btbn-audio win64 winarm64   # the LGPL audio flavour
 ```
 
 `build-local.sh` runs the same steps as the workflow and leaves the zips, source archive and `SHA256SUMS` in
