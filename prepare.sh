@@ -12,15 +12,28 @@ BTBN_REPO="https://github.com/BtbN/FFmpeg-Builds.git"
 # Reviewed 2026-09-15; bump deliberately (BtbN renames stages and changes toolchains).
 BTBN_COMMIT="${BTBN_COMMIT:-3e6685eda92f9288c15ac320139622dcedca09a4}"
 
-# Stage names (the part after the numeric prefix, e.g. 50-x264.sh -> x264, 45-fonts/ -> fonts).
+# Flavour selects the add-in that will be applied and the dependency stages kept for it.
+#   trimmed     (default) GPL video build for Video Converter    -> ./build.sh <t> gpl-shared  9.0 trimmed
+#   audio-lgpl  LGPL v2.1 audio-only build for Audio Converter   -> ./build.sh <t> lgpl-shared 9.0 audio-lgpl
+# Stage names are the part after the numeric prefix (50-x264.sh -> x264, 45-fonts/ -> fonts).
 # Per-target gating (libvpx and onevpl are win64-only, ffnvcodec needs FFmpeg > 8.1 on ARM64) is done by the
 # scripts' own ffbuild_enabled, so listing them here is harmless on winarm64.
-ROOTS=(
-    x264 x265 svtav1 dav1d libvpx libopus libmp3lame   # codecs
-    libass                                             # subtitle burn-in (pulls fonts, fribidi, libunibreak, libxml2)
-    zimg zlib libiconv                                 # zscale, compressed MKV/PNG, charset conversion
-    ffnvcodec amf onevpl                               # NVENC, AMF, QSV headers/dispatchers
-)
+FLAVOR="${FLAVOR:-trimmed}"
+case "$FLAVOR" in
+    trimmed)
+        ROOTS=(
+            x264 x265 svtav1 dav1d libvpx libopus libmp3lame   # codecs
+            libass                                             # subtitle burn-in (pulls fonts, fribidi, libunibreak, libxml2)
+            zimg zlib libiconv                                 # zscale, compressed MKV/PNG, charset conversion
+            ffnvcodec amf onevpl                               # NVENC, AMF, QSV headers/dispatchers
+        ) ;;
+    audio-lgpl)
+        # libvorbis pulls libogg; libmp3lame pulls libiconv (its ffbuild_depends), which adds --enable-iconv.
+        # zlib: png cover art and compressed Matroska tracks. Nothing GPL, nothing needing --enable-version3.
+        ROOTS=( libmp3lame libopus libvorbis zlib libiconv ) ;;
+    *)
+        echo "prepare.sh: unknown FLAVOR '$FLAVOR' (trimmed | audio-lgpl)" >&2; exit 1 ;;
+esac
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="${1:-$HERE/.work}"
@@ -86,6 +99,7 @@ grep -q 'BTBN_IMAGE_REPO' util/vars.sh || { echo "prepare.sh: util/vars.sh REPO 
 sed -i "s|^\(\s*\)to_bake '  cache-to |\1[[ -n \"\$NO_LOCAL_CACHE\" ]] \|\| to_bake '  cache-to |" makeimage.sh
 [[ "$(grep -c 'NO_LOCAL_CACHE' makeimage.sh)" == 3 ]] || { echo "prepare.sh: makeimage.sh cache-to lines changed upstream; update the sed" >&2; exit 1; }
 
-cp "$HERE/addins/trimmed.sh" addins/trimmed.sh
+cp "$HERE"/addins/*.sh addins/
+echo "$FLAVOR" > FLAVOR
 git rev-parse HEAD > BTBN_COMMIT
-echo "== ready: $WORK (BtbN $(cat BTBN_COMMIT))"
+echo "== ready: $WORK (flavour $FLAVOR, BtbN $(cat BTBN_COMMIT))"

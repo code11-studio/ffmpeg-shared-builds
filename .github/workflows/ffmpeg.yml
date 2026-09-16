@@ -1,13 +1,19 @@
 name: FFmpeg build
 
-# Builds the trimmed GPL shared FFmpeg for Windows and publishes binaries + corresponding source to one
-# release of this repository. Run manually.
+# Builds one flavour of the trimmed shared FFmpeg for Windows (gpl: video build for Video Converter;
+# audio-lgpl: LGPL v2.1 audio-only build for Audio Converter) and publishes binaries + corresponding source to
+# one release of this repository. Run manually; use a distinct tag per flavour (ffmpeg-9.0-r1 / ffmpeg-9.0-lgpl-r1).
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag, e.g. ffmpeg-9.0-r1"
+        description: "Release tag, e.g. ffmpeg-9.0-r1 (gpl) or ffmpeg-9.0-lgpl-r1 (audio-lgpl)"
         required: true
+      flavor:
+        description: "gpl = trimmed GPL video build; audio-lgpl = LGPL v2.1 audio-only build"
+        type: choice
+        options: [gpl, audio-lgpl]
+        default: gpl
       btbn_commit:
         description: "BtbN/FFmpeg-Builds commit to build from"
         required: true
@@ -19,6 +25,9 @@ permissions:
 env:
   # BtbN version add-in: builds FFmpeg's release/<version> branch. Keep in step with build-local.sh.
   FFMPEG_VERSION: "9.0"
+  # flavour -> BtbN variant, add-in name (also prepare.sh's FLAVOR) and zip suffix
+  VARIANT: ${{ inputs.flavor == 'audio-lgpl' && 'lgpl-shared' || 'gpl-shared' }}
+  ADDIN: ${{ inputs.flavor == 'audio-lgpl' && 'audio-lgpl' || 'trimmed' }}
 
 jobs:
   build:
@@ -41,6 +50,7 @@ jobs:
       - name: Prepare BtbN tree
         env:
           BTBN_COMMIT: ${{ inputs.btbn_commit }}
+          FLAVOR: ${{ env.ADDIN }}
         run: bash prepare.sh "$RUNNER_TEMP/btbn"
 
       # BTBN_IMAGE_REPO + QUICKBUILD: pull BtbN's public cross-toolchain images instead of rebuilding them.
@@ -50,20 +60,20 @@ jobs:
           BTBN_IMAGE_REPO: btbn/ffmpeg-builds
           QUICKBUILD: "1"
           NO_LOCAL_CACHE: "1"   # do not export every layer to .cache (several GB) on a single-shot runner
-        run: ./makeimage.sh ${{ matrix.target }} gpl-shared "$FFMPEG_VERSION" trimmed
+        run: ./makeimage.sh ${{ matrix.target }} "$VARIANT" "$FFMPEG_VERSION" "$ADDIN"
 
       - name: Build FFmpeg
         working-directory: ${{ runner.temp }}/btbn
         env:
           BTBN_IMAGE_REPO: btbn/ffmpeg-builds
-        run: ./build.sh ${{ matrix.target }} gpl-shared "$FFMPEG_VERSION" trimmed
+        run: ./build.sh ${{ matrix.target }} "$VARIANT" "$FFMPEG_VERSION" "$ADDIN"
 
       - name: Package
         working-directory: ${{ runner.temp }}/btbn
         run: |
           mkdir -p "$GITHUB_WORKSPACE/out"
           zip=$(ls artifacts/*.zip | head -n1)
-          cp "$zip" "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-gpl-shared.zip"
+          cp "$zip" "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-$VARIANT.zip"
           # BtbN's zip name carries the FFmpeg commit (…-g<hash>-…); the sources job reads it from this.
           basename "$zip" .zip > "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-build-name.txt"
 
@@ -88,9 +98,27 @@ jobs:
           name: ffmpeg-source
           path: out/ffmpeg-source.tar.xz
 
+  # The same checks the apps run at vendoring time, before anything is published. Only win64 can execute on a
+  # hosted runner; winarm64 is checked on an ARM64 machine with verify-ffmpeg.ps1.
+  verify:
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-win64
+          path: dist
+      - shell: pwsh
+        run: |
+          Expand-Archive "dist/ffmpeg-win64-$env:VARIANT.zip" -DestinationPath x
+          $bin = (Get-ChildItem x -Recurse -Directory -Filter bin | Select-Object -First 1).FullName
+          $profile = if ('${{ inputs.flavor }}' -eq 'audio-lgpl') { 'audio' } else { 'video' }
+          ./verify-ffmpeg.ps1 -Folder $bin -Profile $profile
+
   release:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, verify]
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -105,7 +133,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [[ "${{ inputs.flavor }}" == audio-lgpl ]]; then
+            notes="Trimmed LGPL v2.1 audio-only shared FFmpeg for Windows (x64, ARM64): all decoders/demuxers, audio encoders only (LAME, AAC, Opus, Vorbis, FLAC, ALAC, PCM, WMA, AC-3). Built without --enable-gpl, --enable-nonfree or --enable-version3. Complete corresponding source: ffmpeg-source.tar.xz"
+          else
+            notes="Trimmed GPL shared FFmpeg for Windows (x64, ARM64). Complete corresponding source: ffmpeg-source.tar.xz"
+          fi
           gh release create "${{ inputs.release_tag }}" dist/* \
             --repo "${{ github.repository }}" \
             --title "${{ inputs.release_tag }}" \
-            --notes "Trimmed GPL shared FFmpeg for Windows (x64, ARM64). Complete corresponding source: ffmpeg-source.tar.xz"
+            --notes "$notes"
