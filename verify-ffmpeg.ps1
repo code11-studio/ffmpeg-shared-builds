@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Checks that an FFmpeg folder has every component this build promises and nothing it must not ship.
     -Profile video: the trimmed GPL build (Video Converter). -Profile audio: the LGPL v2.1 audio-only build.
@@ -81,7 +81,8 @@ if ($buildconf -match 'enable-nonfree') { $problems.Add('build is --enable-nonfr
 if ($Profile -eq 'audio') {
     if ($buildconf -match 'enable-gpl') { $problems.Add('audio build must not be --enable-gpl (LGPL flavour expected)') }
     if ($buildconf -match 'enable-version3') { $problems.Add('audio build must not be --enable-version3 (LGPL v2.1 only)') }
-    if (((& $ffmpeg -hide_banner -L 2>$null) -join "`n") -notmatch 'LGPL version 2\.1') { $problems.Add('ffmpeg -L does not report LGPL version 2.1') }
+    $licenseText = (& $ffmpeg -hide_banner -L 2>$null) -join "`n"   # the license text itself, not its short name
+    if ($licenseText -notmatch 'Lesser General Public' -or $licenseText -notmatch 'version 2\.1') { $problems.Add('ffmpeg -L does not report the GNU Lesser General Public License version 2.1') }
     # The trap the GPL flavour falls into: `-f null -` on audio needs the pcm_s16le encoder, and loudnorm must exist.
     & $ffmpeg -hide_banner -loglevel error -f lavfi -i 'sine=f=440:d=0.2' -af 'loudnorm=print_format=summary' -f null - 2>$null
     if ($LASTEXITCODE -ne 0) { $problems.Add('loudness measurement smoke test failed (sine -> loudnorm -> null)') }
