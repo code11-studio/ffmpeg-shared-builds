@@ -99,6 +99,11 @@ grep -q 'BTBN_IMAGE_REPO' util/vars.sh || { echo "prepare.sh: util/vars.sh REPO 
 sed -i "s|^\(\s*\)to_bake '  cache-to |\1[[ -n \"\$NO_LOCAL_CACHE\" ]] \|\| to_bake '  cache-to |" makeimage.sh
 [[ "$(grep -c 'NO_LOCAL_CACHE' makeimage.sh)" == 3 ]] || { echo "prepare.sh: makeimage.sh cache-to lines changed upstream; update the sed" >&2; exit 1; }
 
+# download.sh globs scripts.d/*/*.sh without nullglob; a flavour that keeps no stage directory (audio-lgpl) would
+# otherwise feed the literal pattern to the container as a stage.
+sed -i 's|^for STAGE in scripts.d/\*.sh scripts.d/\*/\*.sh; do$|shopt -s nullglob\nfor STAGE in scripts.d/*.sh scripts.d/*/*.sh; do\nshopt -u nullglob|' download.sh
+grep -q 'shopt -s nullglob' download.sh || { echo "prepare.sh: download.sh stage loop changed upstream; update the sed" >&2; exit 1; }
+
 cp "$HERE"/addins/*.sh addins/
 echo "$FLAVOR" > FLAVOR
 git rev-parse HEAD > BTBN_COMMIT
