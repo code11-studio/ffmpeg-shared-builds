@@ -5,7 +5,8 @@
 # -f u8 -c adpcm_ima_oki); only outputs are restricted. Applied with: ./build.sh <target> lgpl-shared 9.0 audio-lgpl
 
 # Stay LGPL v2.1-or-later: BtbN's lgpl variants add --enable-version3 (LGPLv3). None of the kept libraries
-# (LAME LGPL2+, opus BSD, vorbis/ogg BSD, zlib, libiconv LGPL2.1+) needs it.
+# (LAME LGPL2+, opus BSD, vorbis/ogg BSD, zlib, libiconv LGPL2.1+, libopenmpt BSD-3, codec2 LGPL2.1) needs it.
+# libopenmpt and codec2 are input-only here: libopenmpt is a demuxer, and libcodec2's encoder is not in the list below.
 FF_CONFIGURE="$(echo "$FF_CONFIGURE" | sed 's/--enable-version3//g')"
 LICENSE_FILE="COPYING.LGPLv2.1"
 

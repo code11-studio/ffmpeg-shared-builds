@@ -30,7 +30,9 @@ case "$FLAVOR" in
     audio-lgpl)
         # libvorbis pulls libogg; libmp3lame pulls libiconv (its ffbuild_depends), which adds --enable-iconv.
         # zlib: png cover art and compressed Matroska tracks. Nothing GPL, nothing needing --enable-version3.
-        ROOTS=( libmp3lame libopus libvorbis zlib libiconv ) ;;
+        # openmpt (BSD-3, BtbN's stage; it turns itself off on winarm64): tracker modules, rendered by the demuxer.
+        # codec2 (LGPL v2.1, our own stage in stages/): .c2 speech files.
+        ROOTS=( libmp3lame libopus libvorbis zlib libiconv openmpt codec2 ) ;;
     *)
         echo "prepare.sh: unknown FLAVOR '$FLAVOR' (trimmed | audio-lgpl)" >&2; exit 1 ;;
 esac
@@ -42,6 +44,9 @@ rm -rf "$WORK"
 git clone "$BTBN_REPO" "$WORK"
 git -C "$WORK" checkout "$BTBN_COMMIT"
 cd "$WORK"
+
+# Stages BtbN does not have (stages/NN-name.sh here): dropped again below unless the flavour's ROOTS reach them.
+cp "$HERE"/stages/*.sh scripts.d/
 
 # Resolve a stage name to its path (a script or a directory of scripts).
 stage_path() {

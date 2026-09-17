@@ -9,7 +9,7 @@ Two flavours, one release each (`FLAVOR` in `prepare.sh`, `flavor` input in the 
 | Flavour | Add-in | BtbN variant | Zip | License | For |
 |---|---|---|---|---|---|
 | `trimmed` (default) | `addins/trimmed.sh` | `gpl-shared` | `ffmpeg-<target>-gpl-shared.zip` | GPL v2+ | Video Converter (x264/x265/SVT-AV1/libvpx, GPU encoders, subtitle burn-in) |
-| `audio-lgpl` | `addins/audio-lgpl.sh` | `lgpl-shared` | `ffmpeg-<target>-lgpl-shared.zip` | LGPL v2.1+ | Audio Converter (all decoders; LAME, AAC, Opus, Vorbis, FLAC, ALAC, PCM, WMA, AC-3 encoders; loudnorm) |
+| `audio-lgpl` | `addins/audio-lgpl.sh` | `lgpl-shared` | `ffmpeg-<target>-lgpl-shared.zip` | LGPL v2.1+ | Audio Converter (all decoders, plus libopenmpt for tracker modules (x64 only) and libcodec2 for `.c2` speech; LAME, AAC, Opus, Vorbis, FLAC, ALAC, PCM, WMA, AC-3 encoders; loudnorm) |
 
 The audio flavour is built without `--enable-gpl`, `--enable-nonfree` and `--enable-version3`, and its
 `verify-ffmpeg.ps1 -Profile audio` run refuses any GPL component. The rest of this file describes the video flavour;
@@ -45,6 +45,8 @@ llvm-mingw), pinned to one commit in `prepare.sh`. CI runs
 1. `prepare.sh` clones BtbN at `BTBN_COMMIT`, computes the transitive dependency closure of the root libraries
    listed in its `ROOTS` array (from each stage's `ffbuild_depends`), deletes every other stage, and rewrites
    `scripts.d/zz-final.sh` — the entry point BtbN's `generate.sh` walks from — to depend on exactly those roots.
+   Stages BtbN does not have live in `stages/` (`50-codec2.sh`) and are copied into `scripts.d` first, so a
+   flavour reaches them through `ROOTS` like any other.
    It also installs the `trimmed` add-in and patches `util/vars.sh` so `BTBN_IMAGE_REPO` can select whose
    base images to use.
 2. `makeimage.sh` + `build.sh` with add-ins `9.0 trimmed` produce `win64` and `winarm64` `gpl-shared` zips

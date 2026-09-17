@@ -45,10 +45,12 @@ if ($Profile -eq 'audio') {
         'silenceremove','afade','pan','channelmap','amix','concat','anullsrc','sine','aevalsrc','scale','format'
     $requiredDecoders = 'aac','ac3','eac3','dca','truehd','mp3','flac','alac','opus','vorbis','wmav2','wmapro','wmalossless',
         'ape','tta','wavpack','mpc7','mpc8','tak','amrnb','amrwb','gsm','gsm_ms','adpcm_ima_oki','pcm_s16le',
-        'h264','hevc','vp9','mjpeg','png','webp','bmp'
+        'h264','hevc','vp9','mjpeg','png','webp','bmp','libcodec2'
     # Names are the first alias ffmpeg prints ("mov,mp4,m4a,3gp,3g2,mj2" -> mov). `u8` is the raw demuxer VOX files use.
     $requiredDemuxers = 'mov','mp3','wav','aiff','flac','ogg','asf','caf','ape','tta','wv','mpc','mpc8','tak','amr','gsm',
-        'dts','ac3','eac3','aac','au','w64','voc','u8','s16le','matroska','avi','mpegts','flv','aa','concat'
+        'dts','ac3','eac3','aac','au','w64','voc','u8','s16le','matroska','avi','mpegts','flv','aa','concat','codec2'
+    # Tracker modules: BtbN's openmpt stage turns itself off on winarm64.
+    if (-not $Arm64) { $requiredDemuxers += 'libopenmpt' }
 } else {
     # ac3, srt, testsrc2 and sine: kept so test clips can be synthesized with the build itself.
     $requiredEncoders = 'libx264','libx265','libsvtav1','prores_ks','gif','png','h264_mf','hevc_mf','aac','ac3','libopus','libmp3lame','mov_text','webvtt','ass','subrip','srt','wrapped_avframe','h264_nvenc','hevc_nvenc','av1_nvenc'
