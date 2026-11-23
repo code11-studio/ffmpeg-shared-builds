@@ -67,7 +67,7 @@ if ($Profile -eq 'audio') {
         # Everything Video Editor's -/filter_complex export graph and its encoder probes use (addins/editor.sh).
         $requiredFilters += 'setpts','asetpts','atempo','concat','xfade','acrossfade','fade','afade','pad','overlay',
             'amix','adelay','volume','trim','atrim','crop','apad','anullsrc','aevalsrc','drawtext',
-            'hflip','vflip','null','anull','aformat','setsar'
+            'hflip','vflip','null','anull','aformat','setsar','settb','tpad','loop'
         $requiredDecoders += 'png'   # title overlays are PNG files
     }
 }

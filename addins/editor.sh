@@ -10,5 +10,8 @@ source addins/trimmed.sh
 # enable='between(t,a,b)', and music via adelay/volume/amix (apad/anullsrc/aevalsrc fill silent gaps).
 FF_CONFIGURE+=" --enable-filter=setpts,asetpts,atempo,concat,xfade,acrossfade,fade,afade,pad,overlay"
 FF_CONFIGURE+=",amix,adelay,volume,trim,atrim,crop,apad,anullsrc,aevalsrc"
+# settb (common timebase before concat/xfade), tpad (hold the last frame when a source is shorter than its clip),
+# loop (photo clips from one decoded image).
+FF_CONFIGURE+=",settb,tpad,loop"
 # drawtext: freetype, fontconfig and harfbuzz are already built for libass, so it adds no library.
 FF_CONFIGURE+=",drawtext"
