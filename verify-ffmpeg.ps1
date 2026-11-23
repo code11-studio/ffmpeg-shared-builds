@@ -2,13 +2,15 @@
 .SYNOPSIS
     Checks that an FFmpeg folder has every component this build promises and nothing it must not ship.
     -Profile video: the trimmed GPL build (Video Converter). -Profile audio: the LGPL v2.1 audio-only build.
+    -Profile editor: the video checks plus Video Editor's export filters and a filter-graph smoke test.
 .EXAMPLE
     ./verify-ffmpeg.ps1 -Folder <folder with ffmpeg.exe, ffprobe.exe and the DLLs>
     ./verify-ffmpeg.ps1 -Folder <folder> -Profile audio
+    ./verify-ffmpeg.ps1 -Folder <folder> -Profile editor
 #>
 param(
     [Parameter(Mandatory)] [string] $Folder,
-    [ValidateSet('video', 'audio')] [string] $Profile = 'video',
+    [ValidateSet('video', 'audio', 'editor')] [string] $Profile = 'video',
     [switch] $Arm64
 )
 
@@ -61,6 +63,13 @@ if ($Profile -eq 'audio') {
     $requiredMuxers = 'mp4','mov','matroska','webm','gif','mp3','image2pipe','ass','null'
     $requiredFilters = 'scale','format','fps','split','palettegen','paletteuse','bwdif','idet','fieldmatch','decimate','telecine','tinterlace','setfield','zscale','tonemap','subtitles','transpose','aresample','color','testsrc2','sine'
     $requiredDecoders = 'h264','hevc','vp9','libdav1d','mpeg2video','mpeg4','vc1','wmv3','prores','aac','ac3','eac3','dca','truehd','flac','opus','mp3','pgssub','dvdsub','subrip','ass'
+    if ($Profile -eq 'editor') {
+        # Everything Video Editor's -/filter_complex export graph and its encoder probes use (addins/editor.sh).
+        $requiredFilters += 'setpts','asetpts','atempo','concat','xfade','acrossfade','fade','afade','pad','overlay',
+            'amix','adelay','volume','trim','atrim','crop','apad','anullsrc','aevalsrc','drawtext',
+            'hflip','vflip','null','anull','aformat','setsar'
+        $requiredDecoders += 'png'   # title overlays are PNG files
+    }
 }
 
 $encoders = Get-CodecNames 'encoders'
@@ -90,6 +99,33 @@ if ($Profile -eq 'audio') {
     if ($LASTEXITCODE -ne 0) { $problems.Add('loudness measurement smoke test failed (sine -> loudnorm -> null)') }
 } else {
     if ($buildconf -notmatch 'enable-gpl') { $problems.Add('expected a GPL build (--enable-gpl) with x264/x265') }
+}
+if ($Profile -eq 'editor') {
+    # The shape of an export, read from a graph file (-/filter_complex): two trimmed, retimed, padded clips joined
+    # by xfade/acrossfade, a timed overlay, and delayed music mixed in. Audio goes to aac: this flavour has no
+    # pcm_s16le encoder for `-f null -`'s default.
+    $graph = @(
+        "[0:v]trim=0:1.5,setpts=PTS-STARTPTS,scale=320:180,pad=360:200:20:10,setsar=1,fade=t=in:d=0.3[v0];"
+        "[1:v]trim=0:1.5,setpts=(PTS-STARTPTS)/1.5,crop=300:160,scale=360:200,hflip,setsar=1[v1];"
+        "[v0][v1]xfade=transition=fade:duration=0.5:offset=1[vx];"
+        "[2:v]format=rgba[t];[vx][t]overlay=10:10:enable='between(t,0.2,1.2)'[vo];"
+        "[3:a]atrim=0:1.5,asetpts=PTS-STARTPTS,afade=t=in:d=0.3[a0];"
+        "[4:a]atrim=0:1.5,asetpts=PTS-STARTPTS,atempo=1.5,apad=pad_dur=1[a1];"
+        "[a0][a1]acrossfade=d=0.5[ax];"
+        "[5:a]adelay=500:all=1,volume=0.5[m];[ax][m]amix=inputs=2:duration=first[ao]"
+    ) -join "`n"
+    $graphFile = Join-Path ([System.IO.Path]::GetTempPath()) "verify-ffmpeg-editor-$PID.txt"
+    Set-Content -LiteralPath $graphFile -Value $graph -Encoding ascii
+    try {
+        & $ffmpeg -hide_banner -loglevel error `
+            -f lavfi -i 'testsrc2=s=640x360:r=30:d=2' -f lavfi -i 'color=c=blue:s=640x360:r=30:d=2' `
+            -f lavfi -i 'color=c=white@0.5:s=80x40:d=2,format=rgba' `
+            -f lavfi -i 'sine=f=440:d=2' -f lavfi -i 'aevalsrc=0.1*sin(2*PI*660*t):d=2' -f lavfi -i 'anullsrc=r=48000:cl=stereo:d=2' `
+            -/filter_complex $graphFile -map '[vo]' -map '[ao]' -c:v wrapped_avframe -c:a aac -f null - 2>$null
+        if ($LASTEXITCODE -ne 0) { $problems.Add('editor filter-graph smoke test failed (-/filter_complex: trim, xfade, overlay, acrossfade, amix)') }
+    } finally {
+        Remove-Item -LiteralPath $graphFile -ErrorAction SilentlyContinue
+    }
 }
 if ($buildconf -notmatch 'enable-shared') { $problems.Add('expected a shared build (--enable-shared): ffmpeg and ffprobe should share av*.dll') }
 

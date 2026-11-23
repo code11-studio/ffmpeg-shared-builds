@@ -15,12 +15,14 @@ BTBN_COMMIT="${BTBN_COMMIT:-3e6685eda92f9288c15ac320139622dcedca09a4}"
 # Flavour selects the add-in that will be applied and the dependency stages kept for it.
 #   trimmed     (default) GPL video build for Video Converter    -> ./build.sh <t> gpl-shared  9.0 trimmed
 #   audio-lgpl  LGPL v2.1 audio-only build for Audio Converter   -> ./build.sh <t> lgpl-shared 9.0 audio-lgpl
+#   editor      trimmed + Video Editor's export filters          -> ./build.sh <t> gpl-shared  9.0 editor
 # Stage names are the part after the numeric prefix (50-x264.sh -> x264, 45-fonts/ -> fonts).
 # Per-target gating (libvpx and onevpl are win64-only, ffnvcodec needs FFmpeg > 8.1 on ARM64) is done by the
 # scripts' own ffbuild_enabled, so listing them here is harmless on winarm64.
 FLAVOR="${FLAVOR:-trimmed}"
 case "$FLAVOR" in
-    trimmed)
+    trimmed|editor)
+        # editor only adds filters (addins/editor.sh); it builds exactly the trimmed libraries.
         ROOTS=(
             x264 x265 svtav1 dav1d libvpx libopus libmp3lame   # codecs
             libass                                             # subtitle burn-in (pulls fonts, fribidi, libunibreak, libxml2)
@@ -34,7 +36,7 @@ case "$FLAVOR" in
         # codec2 (LGPL v2.1, our own stage in stages/): .c2 speech files.
         ROOTS=( libmp3lame libopus libvorbis zlib libiconv openmpt codec2 ) ;;
     *)
-        echo "prepare.sh: unknown FLAVOR '$FLAVOR' (trimmed | audio-lgpl)" >&2; exit 1 ;;
+        echo "prepare.sh: unknown FLAVOR '$FLAVOR' (trimmed | audio-lgpl | editor)" >&2; exit 1 ;;
 esac
 
 HERE="$(cd "$(dirname "$0")" && pwd)"

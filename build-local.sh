@@ -3,7 +3,8 @@
 # (on Windows: WSL 2 + Docker Desktop with WSL integration). Keep WORK on the Linux filesystem, not /mnt/*.
 #   ./build-local.sh [workdir] [targets...]      e.g. ./build-local.sh ~/btbn win64 winarm64
 #   FLAVOR=audio-lgpl ./build-local.sh ~/btbn win64  (LGPL audio-only flavour, see prepare.sh)
-# Output: <workdir>/out/ffmpeg-<target>-<variant>.zip, ffmpeg-source.tar.xz, SHA256SUMS
+#   FLAVOR=editor ./build-local.sh ~/btbn-editor win64  (trimmed + Video Editor filters)
+# Output: <workdir>/out/ffmpeg-<target>-<zip suffix>.zip, ffmpeg-source.tar.xz, SHA256SUMS
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -12,11 +13,12 @@ TARGETS=("${@:-win64 winarm64}")
 [[ ${#TARGETS[@]} -eq 1 && "${TARGETS[0]}" == *" "* ]] && read -ra TARGETS <<< "${TARGETS[0]}"
 # BtbN version add-in: builds FFmpeg's release/<version> branch. Keep in step with the workflow's FFMPEG_VERSION.
 FFMPEG_VERSION="${FFMPEG_VERSION:-9.0}"
-# Flavour -> BtbN variant and add-in (the same mapping as the workflow).
+# Flavour -> BtbN variant, add-in and zip suffix (the same mapping as the workflow).
 export FLAVOR="${FLAVOR:-trimmed}"
 case "$FLAVOR" in
-    trimmed)    VARIANT=gpl-shared;  ADDIN=trimmed ;;
-    audio-lgpl) VARIANT=lgpl-shared; ADDIN=audio-lgpl ;;
+    trimmed)    VARIANT=gpl-shared;  ADDIN=trimmed;    ZIP=gpl-shared ;;
+    audio-lgpl) VARIANT=lgpl-shared; ADDIN=audio-lgpl; ZIP=lgpl-shared ;;
+    editor)     VARIANT=gpl-shared;  ADDIN=editor;     ZIP=gpl-editor-shared ;;
     *) echo "build-local.sh: unknown FLAVOR '$FLAVOR'" >&2; exit 1 ;;
 esac
 
@@ -33,7 +35,7 @@ for target in "${TARGETS[@]}"; do
     echo "==== $target: ffmpeg"
     ./build.sh "$target" "$VARIANT" "$FFMPEG_VERSION" "$ADDIN"
     zip="$(ls -t artifacts/*.zip | head -n1)"
-    cp "$zip" "out/ffmpeg-$target-$VARIANT.zip"
+    cp "$zip" "out/ffmpeg-$target-$ZIP.zip"
     # BtbN's zip name carries the FFmpeg commit (…-g<hash>-<target>-…); keep it for the source archive.
     basename "$zip" .zip > "out/ffmpeg-$target-build-name.txt"
 done

@@ -4,16 +4,26 @@ Trimmed **shared** FFmpeg builds for Windows (x64 and ARM64): `ffmpeg.exe` + `ff
 to be started as separate processes by a host application. Each release carries the binaries, `SHA256SUMS`, and
 `ffmpeg-source.tar.xz`: the complete corresponding source (GPL v2 §3 / LGPL v2.1 §4).
 
-Two flavours, one release each (`FLAVOR` in `prepare.sh`, `flavor` input in the workflow):
+Three flavours, one release each (`FLAVOR` in `prepare.sh`, `flavor` input in the workflow):
 
 | Flavour | Add-in | BtbN variant | Zip | License | For |
 |---|---|---|---|---|---|
 | `trimmed` (default) | `addins/trimmed.sh` | `gpl-shared` | `ffmpeg-<target>-gpl-shared.zip` | GPL v2+ | Video Converter (x264/x265/SVT-AV1/libvpx, GPU encoders, subtitle burn-in) |
+| `editor` | `addins/editor.sh` | `gpl-shared` | `ffmpeg-<target>-gpl-editor-shared.zip` | GPL v2+ | Video Editor (everything in `trimmed`, plus timeline filters for its `-/filter_complex` export graph) |
 | `audio-lgpl` | `addins/audio-lgpl.sh` | `lgpl-shared` | `ffmpeg-<target>-lgpl-shared.zip` | LGPL v2.1+ | Audio Converter (all decoders, plus libopenmpt for tracker modules (x64 only) and libcodec2 for `.c2` speech; LAME, AAC, Opus, Vorbis, FLAC, ALAC, PCM, WMA, AC-3 encoders; loudnorm) |
 
 The audio flavour is built without `--enable-gpl`, `--enable-nonfree` and `--enable-version3`, and its
 `verify-ffmpeg.ps1 -Profile audio` run refuses any GPL component. The rest of this file describes the video flavour;
 the audio one only swaps the add-in and the dependency roots.
+
+The `editor` flavour is `trimmed` plus filters, nothing else: the same libraries (`prepare.sh` gives both the same
+`ROOTS`), license, encoders, muxers, GPU encoders, `--disable-network` and devices (lavfi only).
+[`addins/editor.sh`](addins/editor.sh) sources `addins/trimmed.sh` and enables these filters on top:
+`setpts`, `asetpts`, `atempo`, `concat`, `xfade`, `acrossfade`, `fade`, `afade`, `pad`, `overlay`, `amix`,
+`adelay`, `volume`, `trim`, `atrim`, `crop`, `apad`, `anullsrc`, `aevalsrc` and `drawtext` (freetype, fontconfig
+and harfbuzz are already built for libass). Its zip carries `editor` in the name so it never collides with the
+`trimmed` zip, and `verify-ffmpeg.ps1 -Profile editor` adds those filters to the video checks and runs a
+`-/filter_complex` graph file (trim, setpts, pad, crop, xfade, timed overlay, atempo, acrossfade, adelay, amix).
 
 ## What is in it
 
@@ -32,6 +42,8 @@ encoders, muxers and filters listed in the add-in are enabled, and only these ex
 | zimg | `zscale` for HDR → SDR tone-mapping |
 | zlib, libiconv | Compressed MKV tracks, PNG, non-UTF-8 subtitles |
 | nv-codec-headers, AMF, libvpl (x64 only), Media Foundation | GPU encoders |
+
+The `editor` flavour has the same libraries and adds only filters (see above).
 
 The exact configure switches live in [`addins/trimmed.sh`](addins/trimmed.sh); the kept dependency
 scripts are listed in [`prepare.sh`](prepare.sh).
@@ -67,11 +79,22 @@ Install WSL 2 with Ubuntu and Docker Desktop with WSL integration enabled for th
 cp -r /mnt/e/Github/Codeleven/ffmpeg-shared-builds ~/ffmpeg-builds && sed -i 's/\r$//' ~/ffmpeg-builds/*.sh ~/ffmpeg-builds/addins/*.sh
 bash ~/ffmpeg-builds/build-local.sh ~/btbn win64 winarm64
 FLAVOR=audio-lgpl bash ~/ffmpeg-builds/build-local.sh ~/btbn-audio win64 winarm64   # the LGPL audio flavour
+FLAVOR=editor bash ~/ffmpeg-builds/build-local.sh ~/btbn-editor win64 winarm64        # trimmed + editor filters
 ```
 
 `build-local.sh` runs the same steps as the workflow and leaves the zips, source archive and `SHA256SUMS` in
 `~/btbn/out`. Copy a zip's `bin` folder somewhere and run
 `verify-ffmpeg.ps1` on it.
+
+## Releases and tags
+
+Run the workflow once per flavour, each with its own tag; bump `rN` for a rebuild of the same FFmpeg version.
+
+| Flavour (`flavor` input) | Tag | Zips |
+|---|---|---|
+| `gpl` (`trimmed`) | `ffmpeg-9.0-r1` | `ffmpeg-win64-gpl-shared.zip`, `ffmpeg-winarm64-gpl-shared.zip` |
+| `audio-lgpl` | `ffmpeg-9.0-lgpl-r1` | `ffmpeg-win64-lgpl-shared.zip`, `ffmpeg-winarm64-lgpl-shared.zip` |
+| `editor` | `ffmpeg-9.0-editor-r1` | `ffmpeg-win64-gpl-editor-shared.zip`, `ffmpeg-winarm64-gpl-editor-shared.zip` |
 
 ## Using a release
 
@@ -81,6 +104,7 @@ promised encoder, muxer, filter and device and the expected license flags:
 
 ```powershell
 ./verify-ffmpeg.ps1 -Folder <folder with ffmpeg.exe, ffprobe.exe and the DLLs>
+./verify-ffmpeg.ps1 -Folder <folder> -Profile editor   # editor zip; -Profile audio for the LGPL zip
 ```
 
 ## License

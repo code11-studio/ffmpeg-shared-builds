@@ -1,18 +1,19 @@
 name: FFmpeg build
 
 # Builds one flavour of the trimmed shared FFmpeg for Windows (gpl: video build for Video Converter;
-# audio-lgpl: LGPL v2.1 audio-only build for Audio Converter) and publishes binaries + corresponding source to
-# one release of this repository. Run manually; use a distinct tag per flavour (ffmpeg-9.0-r1 / ffmpeg-9.0-lgpl-r1).
+# audio-lgpl: LGPL v2.1 audio-only build for Audio Converter; editor: the gpl build plus Video Editor's export
+# filters) and publishes binaries + corresponding source to one release of this repository. Run manually; use a
+# distinct tag per flavour (ffmpeg-9.0-r1 / ffmpeg-9.0-lgpl-r1 / ffmpeg-9.0-editor-r1).
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag, e.g. ffmpeg-9.0-r1 (gpl) or ffmpeg-9.0-lgpl-r1 (audio-lgpl)"
+        description: "Release tag, e.g. ffmpeg-9.0-r1 (gpl), ffmpeg-9.0-lgpl-r1 (audio-lgpl), ffmpeg-9.0-editor-r1 (editor)"
         required: true
       flavor:
-        description: "gpl = trimmed GPL video build; audio-lgpl = LGPL v2.1 audio-only build"
+        description: "gpl = trimmed GPL video build; audio-lgpl = LGPL v2.1 audio-only build; editor = gpl + Video Editor filters"
         type: choice
-        options: [gpl, audio-lgpl]
+        options: [gpl, audio-lgpl, editor]
         default: gpl
       btbn_commit:
         description: "BtbN/FFmpeg-Builds commit to build from"
@@ -25,9 +26,11 @@ permissions:
 env:
   # BtbN version add-in: builds FFmpeg's release/<version> branch. Keep in step with build-local.sh.
   FFMPEG_VERSION: "9.0"
-  # flavour -> BtbN variant, add-in name (also prepare.sh's FLAVOR) and zip suffix
+  # flavour -> BtbN variant, add-in name (also prepare.sh's FLAVOR), zip suffix and verify profile
   VARIANT: ${{ inputs.flavor == 'audio-lgpl' && 'lgpl-shared' || 'gpl-shared' }}
-  ADDIN: ${{ inputs.flavor == 'audio-lgpl' && 'audio-lgpl' || 'trimmed' }}
+  ADDIN: ${{ inputs.flavor == 'audio-lgpl' && 'audio-lgpl' || inputs.flavor == 'editor' && 'editor' || 'trimmed' }}
+  ZIP: ${{ inputs.flavor == 'audio-lgpl' && 'lgpl-shared' || inputs.flavor == 'editor' && 'gpl-editor-shared' || 'gpl-shared' }}
+  VERIFY_PROFILE: ${{ inputs.flavor == 'audio-lgpl' && 'audio' || inputs.flavor == 'editor' && 'editor' || 'video' }}
 
 jobs:
   build:
@@ -73,7 +76,7 @@ jobs:
         run: |
           mkdir -p "$GITHUB_WORKSPACE/out"
           zip=$(ls artifacts/*.zip | head -n1)
-          cp "$zip" "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-$VARIANT.zip"
+          cp "$zip" "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-$ZIP.zip"
           # BtbN's zip name carries the FFmpeg commit (…-g<hash>-…); the sources job reads it from this.
           basename "$zip" .zip > "$GITHUB_WORKSPACE/out/ffmpeg-${{ matrix.target }}-build-name.txt"
 
@@ -111,10 +114,9 @@ jobs:
           path: dist
       - shell: pwsh
         run: |
-          Expand-Archive "dist/ffmpeg-win64-$env:VARIANT.zip" -DestinationPath x
+          Expand-Archive "dist/ffmpeg-win64-$env:ZIP.zip" -DestinationPath x
           $bin = (Get-ChildItem x -Recurse -Directory -Filter bin | Select-Object -First 1).FullName
-          $profile = if ('${{ inputs.flavor }}' -eq 'audio-lgpl') { 'audio' } else { 'video' }
-          ./verify-ffmpeg.ps1 -Folder $bin -Profile $profile
+          ./verify-ffmpeg.ps1 -Folder $bin -Profile $env:VERIFY_PROFILE
 
   release:
     runs-on: ubuntu-latest
@@ -135,6 +137,8 @@ jobs:
         run: |
           if [[ "${{ inputs.flavor }}" == audio-lgpl ]]; then
             notes="Trimmed LGPL v2.1 audio-only shared FFmpeg for Windows (x64, ARM64): all decoders/demuxers, audio encoders only (LAME, AAC, Opus, Vorbis, FLAC, ALAC, PCM, WMA, AC-3). Built without --enable-gpl, --enable-nonfree or --enable-version3. Complete corresponding source: ffmpeg-source.tar.xz"
+          elif [[ "${{ inputs.flavor }}" == editor ]]; then
+            notes="Trimmed GPL shared FFmpeg for Windows (x64, ARM64) for Video Editor: the gpl build plus timeline filters (setpts/atempo, trim/atrim, pad/crop, fade/afade, xfade/acrossfade, concat, overlay, drawtext, adelay/volume/amix). Complete corresponding source: ffmpeg-source.tar.xz"
           else
             notes="Trimmed GPL shared FFmpeg for Windows (x64, ARM64). Complete corresponding source: ffmpeg-source.tar.xz"
           fi
